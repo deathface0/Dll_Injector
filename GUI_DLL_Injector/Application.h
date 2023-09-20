@@ -24,6 +24,7 @@ namespace Global
 	inline bool procWatching = false;
 	inline char procWatched[MAX_PATH] = "";
 	inline char procFilter[MAX_PATH] = "";
+	inline bool procSorted = false;
 }
 
 struct OpenGL
@@ -38,6 +39,7 @@ private:
 	static std::string replace_all(std::string& str, const std::string& find, const std::string& replace);
 
 	static void loadProcList();
+	static void sortProcList();
 	static void loadProcTable();
 	static void renderProcWnd(const OpenGL& window);
 
@@ -48,4 +50,3 @@ public:
 	static std::string selectFile();
 	static void renderUI(const OpenGL& window);
 };
-

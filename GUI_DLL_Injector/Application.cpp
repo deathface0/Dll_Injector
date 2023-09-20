@@ -14,22 +14,22 @@ void App::loadProcList()
 {
     if (Global::loadList)
     {
-        if (!strcmp(Global::procFilter, "")) //No filter
+        if (!strcmp(Global::procFilter, "")) // No filter
         {
-            Global::procList = DLLInjector::getProcList(); //Obtaining process list
+            Global::procList = DLLInjector::getProcList(); // Obtaining process list
             Global::loadList = false;
         }
-        else { //Using filter
+        else { // Using filter
             std::vector<Process> list;
-            Global::procList = DLLInjector::getProcList(); //Obtaining process list
+            Global::procList = DLLInjector::getProcList(); // Obtaining process list
 
             std::string lc_filter, lc_procName;
-            for (char c : Global::procFilter) { lc_filter += std::tolower(c); } //Convert filter to lowercase
+            for (char c : Global::procFilter) { lc_filter += std::tolower(c); } // Convert filter to lowercase
 
             for (int i = 0; i < Global::procList.size(); i++) {
-                for (char c : Global::procList[i].name) { lc_procName += std::tolower(c); } //Convert process name to lowercase
+                for (char c : Global::procList[i].name) { lc_procName += std::tolower(c); } // Convert process name to lowercase
                 if (lc_procName.find(lc_filter.c_str()) != std::string::npos) {
-                    list.push_back(Global::procList[i]); //Push match to new vector
+                    list.push_back(Global::procList[i]); // Push match to new vector
                 }
                 lc_procName.clear();
             }
@@ -42,19 +42,74 @@ void App::loadProcList()
     }
 }
 
+void App::sortProcList()
+{
+    if (ImGuiTableSortSpecs* sorts_specs = ImGui::TableGetSortSpecs())
+    {
+        std::vector<Process> lc_procList; std::string lc_procName;
+
+        for (int i = 0; i < Global::procList.size(); i++) {
+            for (char c : Global::procList[i].name) { lc_procName += std::tolower(c); } // Convert process name to lowercase
+            lc_procList.push_back({ Global::procList[i].id, lc_procName });
+
+            lc_procName.clear();
+        }
+
+        if (sorts_specs->Specs->SortDirection == 1)
+        {
+            std::sort(Global::procList.begin(), Global::procList.end(), [&](const Process& n1, const Process& n2)
+                {
+                    std::string lc_n1, lc_n2;
+                    for (char c : n1.name) { lc_n1 += std::tolower(c); } // Convert process name to lowercase
+                    for (char c : n2.name) { lc_n2 += std::tolower(c); } // Convert process name to lowercase
+
+                    if (lc_n1 != lc_n2) {
+                        return lc_n1 < lc_n2;
+                    }
+                    else {
+                        return n1.name < n2.name;
+                    }
+                }
+            );
+        }
+        else if (sorts_specs->Specs->SortDirection == 2)
+        {
+            std::sort(Global::procList.begin(), Global::procList.end(), [&](const Process& n1, const Process& n2)
+                {
+                    std::string lc_n1, lc_n2;
+                    for (char c : n1.name) { lc_n1 += std::tolower(c); } // Convert process name to lowercase
+                    for (char c : n2.name) { lc_n2 += std::tolower(c); } // Convert process name to lowercase
+
+                    if (lc_n1 != lc_n2) {
+                        return lc_n1 > lc_n2;
+                    }
+                    else {
+                        return n1.name > n2.name;
+                    }
+                }
+            );
+        }
+    }
+}
+
 void App::loadProcTable()
 {
-    //Variables
+    // Variables
     static ImGuiTableFlags flags1 = ImGuiTableFlags_Borders | ImGuiTableColumnFlags_WidthFixed;
     bool isHovered, isClicked;
-    int rows = Global::procList.size() + 1; //Set table rows
+    int rows = Global::procList.size() + 1; // Set table rows
 
-        //Process table
+    // Process table
     if (ImGui::BeginTable("process_table", 2, flags1))
     {
-        ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_WidthFixed, 50.0f);
-        ImGui::TableSetupColumn("Process Name", ImGuiTableColumnFlags_WidthFixed, 200.0f);
+        // Set column headers
+        ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed, 50.0f);
+        ImGui::TableSetupColumn("Process Name", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed, 200.0f);
         ImGui::TableHeadersRow();
+
+        // Sort our data if sort specs have been changed!
+        sortProcList();
+
         for (int row = 0; row < rows; row++)
         {
             ImGui::TableNextRow();
@@ -107,7 +162,6 @@ std::string App::selectFile()
 
 void App::renderUI(const OpenGL& window)
 {
-    //std::sort(nombres.begin(), nombres.end());
     //ImGui::ShowDemoWindow();
 
     renderProcWnd(window);
@@ -118,19 +172,19 @@ void App::renderProcWnd(const OpenGL& window)
 {
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
 
-    //Window configuration
+    // Window configuration
     ImGui::SetNextWindowSize(ImVec2(Global::GL_WIN_WIDTH / 2.0f, Global::GL_WIN_HEIGHT));
     ImGui::SetNextWindowPos(ImVec2(window.windowX, window.windowY));
-    //Process List Window
+    // Process List Window
     if (ImGui::Begin("Process List Window", (bool*)1, window_flags))
     {
-        //Process filter
+        // Process filter
         ImGui::Text("Filter");
         ImGui::SameLine();
         ImGui::PushItemWidth(600.0f);
         ImGui::InputText("", Global::procFilter, IM_ARRAYSIZE(Global::procFilter));
 
-        ImGui::Text("%s running", std::to_string(Global::procList.size()).c_str()); //Running processes
+        ImGui::Text("%s running", std::to_string(Global::procList.size()).c_str()); // Running processes
 
         loadProcList();
         loadProcTable();
@@ -148,7 +202,7 @@ void App::watchProcess()
             if (process.name == Global::procWatched)
             {
                 DLLInjector::Inject(process.id, Global::fixedDllPath.c_str());
-                strcpy_s(Global::procWatched, ""); //Clear process watched
+                strcpy_s(Global::procWatched, ""); // Clear process watched
                 Global::procWatching = false;
             }
         }
@@ -159,29 +213,35 @@ void App::renderInjectionWnd(const OpenGL& window)
 {
     ImGuiWindowFlags window_flags = ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove;
 
-    //Window configuration
+    // Window configuration
     ImGui::SetNextWindowSize(ImVec2(Global::GL_WIN_WIDTH / 2.0f, Global::GL_WIN_HEIGHT));
     ImGui::SetNextWindowPos(ImVec2(window.windowX + Global::GL_WIN_WIDTH / 2.0f, window.windowY));
-    //Injection Window
+    // Injection Window
     if (ImGui::Begin("Injection Window", (bool*)1, window_flags))
     {
-        //Window configuration
+        // Window configuration
         ImGui::SetNextWindowSize(ImVec2(Global::GL_WIN_WIDTH / 2.0f, Global::GL_WIN_HEIGHT));
         ImGui::SetNextWindowPos(ImVec2(window.windowX, window.windowY));
 
-        //Load DLL menu
+        // Load DLL menu
         if (ImGui::Button("Load DLL")) { strcpy_s(Global::dllPath, selectFile().c_str()); }
         ImGui::SameLine(0, 44);
         ImGui::PushItemWidth(400.0f);
         ImGui::InputText("DLL", Global::dllPath, IM_ARRAYSIZE(Global::dllPath));
-        Global::fixedDllPath.assign(Global::dllPath); replace_all(Global::fixedDllPath, "\\", "\\\\"); //DLL path string manipulation
+        Global::fixedDllPath.assign(Global::dllPath); replace_all(Global::fixedDllPath, "\\", "\\\\"); // DLL path string manipulation
 
-        //Process watcher
+        // Process watcher
         ImGui::Checkbox("Wait Launch", &Global::procWatching);
         ImGui::SameLine();
         ImGui::PushItemWidth(400.0f);
         ImGui::InputText("Watch", Global::procWatched, IM_ARRAYSIZE(Global::procWatched));
         watchProcess();
+
+        // Injection type
+        const char* items[] = { "Remote Thread Injection (RTI)", "Reflective DLL Injection", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIIIIII", "JJJJ", "KKKKKKK" };
+        static int item_current = 0;
+        ImGui::PushItemWidth(388.0f);
+        ImGui::Combo("combo", &item_current, items, IM_ARRAYSIZE(items));
 
         ImGui::End();
     }
