@@ -81,10 +81,12 @@ int main(int, char**)
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 0);
     //glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);  // 3.2+ only
     //glfwWindowHint(GLFW_OPENGL_FORWARD_COMPAT, GL_TRUE);            // 3.0+ only
+    glfwWindowHint(GLFW_RESIZABLE, GLFW_FALSE);
+
 #endif
 
     // Create window with graphics context
-    GLFWwindow* window = glfwCreateWindow(1280, 720, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
+    GLFWwindow* window = glfwCreateWindow(Global::GL_WIN_WIDTH, Global::GL_WIN_HEIGHT, "Dear ImGui GLFW+OpenGL3 example", NULL, NULL);
     if (window == NULL)
         return 1;
     glfwMakeContextCurrent(window);
@@ -187,7 +189,12 @@ int main(int, char**)
         ImGui::NewFrame();
 
         // My Code
-        App::renderUI();
+        
+        //OpenGL window specs
+        OpenGL s_window;
+        glfwGetWindowPos(window, &s_window.windowX, &s_window.windowY);
+
+        App::renderUI(s_window); //Render
         
 
         // Rendering
