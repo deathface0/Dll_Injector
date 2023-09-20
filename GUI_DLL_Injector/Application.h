@@ -16,6 +16,7 @@ namespace Global
 	inline const int GL_WIN_HEIGHT = 600;
 
 	inline std::vector<Process> procList;
+	inline Process selectedProcess;
 	inline bool loadList = false;
 
 	inline char dllPath[MAX_PATH] = "";
@@ -25,6 +26,8 @@ namespace Global
 	inline char procWatched[MAX_PATH] = "";
 	inline char procFilter[MAX_PATH] = "";
 	inline bool procSorted = false;
+
+	inline bool closeOnInject = false;
 }
 
 struct OpenGL

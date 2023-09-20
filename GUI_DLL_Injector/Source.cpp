@@ -160,6 +160,8 @@ int main(int, char**)
 
     // Our state
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    Global::selectedProcess.name = "none";
+    Global::selectedProcess.id = 0;
 
     //Thread loading process list
     bool running = true;

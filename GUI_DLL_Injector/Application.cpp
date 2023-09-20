@@ -123,7 +123,7 @@ void App::loadProcTable()
             isHovered = ImGui::IsItemHovered();
             if (isHovered) { ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImColor(0.5f, 0.5f, 1.0f, 1.0f)); }
             isClicked = ImGui::IsItemClicked(0);
-            if (isClicked) { DLLInjector::Inject(Global::procList[row].id, Global::fixedDllPath.c_str()); }
+            if (isClicked) { Global::selectedProcess = Global::procList[row]; }
 
             // Column 2
             ImGui::TableSetColumnIndex(1);
@@ -132,7 +132,7 @@ void App::loadProcTable()
             isHovered = ImGui::IsItemHovered();
             if (isHovered) { ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0, ImColor(0.5f, 0.5f, 1.0f, 1.0f)); }
             isClicked = ImGui::IsItemClicked(0);
-            if (isClicked) { DLLInjector::Inject(Global::procList[row].id, Global::fixedDllPath.c_str()); }
+            if (isClicked) { Global::selectedProcess = Global::procList[row]; }
         }
         ImGui::EndTable();
     }
@@ -178,6 +178,10 @@ void App::renderProcWnd(const OpenGL& window)
     // Process List Window
     if (ImGui::Begin("Process List Window", (bool*)1, window_flags))
     {
+        std::string procView = Global::selectedProcess.name + "(" + std::to_string(Global::selectedProcess.id) + ")";
+        ImGui::TextColored(ImVec4(0.0f, 1.0f, 0.0f, 1.0f), procView.c_str());
+        ImGui::Separator();
+
         // Process filter
         ImGui::Text("Filter");
         ImGui::SameLine();
@@ -201,7 +205,9 @@ void App::watchProcess()
         {
             if (process.name == Global::procWatched)
             {
-                DLLInjector::Inject(process.id, Global::fixedDllPath.c_str());
+                if (DLLInjector::Inject(process.id, Global::fixedDllPath.c_str()) && Global::closeOnInject)
+                    exit(1);
+                    
                 strcpy_s(Global::procWatched, ""); // Clear process watched
                 Global::procWatching = false;
             }
@@ -230,18 +236,31 @@ void App::renderInjectionWnd(const OpenGL& window)
         ImGui::InputText("DLL", Global::dllPath, IM_ARRAYSIZE(Global::dllPath));
         Global::fixedDllPath.assign(Global::dllPath); replace_all(Global::fixedDllPath, "\\", "\\\\"); // DLL path string manipulation
 
+        // Injection type
+        const char* items[] = { "Remote Thread Injection (RTI)", "Reflective DLL Injection", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIIIIII", "JJJJ", "KKKKKKK" };
+        static int item_current = 0;
+        ImGui::PushItemWidth(388.0f);
+        ImGui::Combo("combo", &item_current, items, IM_ARRAYSIZE(items));
+
         // Process watcher
         ImGui::Checkbox("Wait Launch", &Global::procWatching);
         ImGui::SameLine();
         ImGui::PushItemWidth(400.0f);
         ImGui::InputText("Watch", Global::procWatched, IM_ARRAYSIZE(Global::procWatched));
         watchProcess();
+        
+        // Close on inject
+        ImGui::Checkbox("Close On Inject", &Global::closeOnInject);
 
-        // Injection type
-        const char* items[] = { "Remote Thread Injection (RTI)", "Reflective DLL Injection", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIIIIII", "JJJJ", "KKKKKKK" };
-        static int item_current = 0;
-        ImGui::PushItemWidth(388.0f);
-        ImGui::Combo("combo", &item_current, items, IM_ARRAYSIZE(items));
+        ImGui::NewLine(); // New
+        ImGui::NewLine(); // lines
+
+        // Inject button
+        if (ImGui::Button("Inject", { 100, 40 }))
+            if (DLLInjector::Inject(Global::selectedProcess.id, Global::fixedDllPath.c_str()))
+                exit(1);
+            
+            
 
         ImGui::End();
     }
