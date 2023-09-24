@@ -1,6 +1,12 @@
 #pragma once
 
+#include <Windows.h>
+#include <ShellAPI.h>
 #include "imgui.h"
+
+#include <glad/glad.h>
+#include <gl/glcorearb.h>
+
 #include "DLLInjector.h"
 #include <iostream>
 #include <string>
@@ -9,6 +15,9 @@
 #include <algorithm>
 #include <exception>
 #include <cctype>
+#include <Psapi.h>
+#include <tchar.h>
+#include <codecvt>
 
 namespace Global
 {
@@ -40,7 +49,10 @@ class App
 {
 private:
 	static std::string replace_all(std::string& str, const std::string& find, const std::string& replace);
+	static GLuint CreateTextureFromHICON(HICON& hIcon);
 
+	static bool getProcessIcon(DWORD processId, HICON& phiconLarge, HICON& phiconSmall);
+	static void renderImageWithImGui(const std::vector<unsigned char>& imageData, int width, int height);
 	static void loadProcList();
 	static void sortProcList();
 	static void loadProcTable();

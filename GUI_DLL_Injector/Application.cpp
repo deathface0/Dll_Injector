@@ -10,6 +10,122 @@ std::string App::replace_all(std::string& str, const std::string& find, const st
     return str;
 }
 
+GLuint App::CreateTextureFromHICON(HICON& hIcon)
+{
+    if (hIcon == NULL) {
+        return 0;
+    }
+
+    ICONINFO iconInfo;
+    if (!GetIconInfo(hIcon, &iconInfo)) {
+        return 0;
+    }
+    
+    GLuint textureID = 0;
+    glGenTextures(1, &textureID);
+    glBindTexture(GL_TEXTURE_2D, textureID);
+
+    // Obtener la información de la imagen del icono
+    BITMAP bmp;
+    if (!GetObject(iconInfo.hbmColor, sizeof(BITMAP), &bmp)) {
+        DeleteObject(iconInfo.hbmColor);
+        DeleteObject(iconInfo.hbmMask);
+        return 0;
+    }
+
+    // Copiar el icono al contexto de dispositivo
+    HDC dc = CreateCompatibleDC(NULL);
+    HBITMAP hOldBitmap = (HBITMAP)SelectObject(dc, iconInfo.hbmColor);
+
+    // Configurar el formato de píxeles adecuado para OpenGL
+    BITMAPINFO bi;
+    memset(&bi, 0, sizeof(BITMAPINFO));
+    bi.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+    bi.bmiHeader.biWidth = bmp.bmWidth;
+    bi.bmiHeader.biHeight = -bmp.bmHeight;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+
+    // Copiar los datos del icono a la textura OpenGL
+    glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, bmp.bmWidth, bmp.bmHeight, GL_BGRA, GL_UNSIGNED_BYTE, NULL);
+
+    // Restaurar el objeto de bitmap original y liberar recursos
+    SelectObject(dc, hOldBitmap);
+    DeleteObject(iconInfo.hbmColor);
+    DeleteObject(iconInfo.hbmMask);
+    DeleteDC(dc);
+
+    return textureID;
+}
+
+bool App::getProcessIcon(DWORD processId, HICON& phiconLarge, HICON& phiconSmall) {
+    // Obtener un identificador de proceso
+    HANDLE hProcess = OpenProcess(PROCESS_QUERY_INFORMATION | PROCESS_VM_READ, FALSE, processId);
+    if (hProcess == NULL) {
+        return false;
+    }
+
+    // Obtener la ruta del archivo ejecutable del proceso
+    TCHAR exePath[MAX_PATH];
+    if (GetProcessImageFileName(hProcess, exePath, MAX_PATH) == 0) {
+        CloseHandle(hProcess);
+        return false;
+    }
+    std::string formatedExePath = exePath;
+    replace_all(formatedExePath, "\\Device\\HarddiskVolume5\\", "C:\\"); // DLL path string manipulation
+    replace_all(formatedExePath, "\\", "\\\\"); // DLL path string manipulation
+    //std::cout << formatedExePath << std::endl;
+
+    int iconIndex = 0; // Índice del ícono dentro del archivo ejecutable (generalmente 0 para el primer ícono)
+
+    HICON iconLarge;
+    HICON iconSmall;
+
+    UINT result = ExtractIconExA(formatedExePath.c_str(), iconIndex, &iconLarge, &iconSmall, 1);
+
+    if (result > 0) {
+        std::cout << "HICON OBTAINED" << std::endl;
+
+        phiconLarge = iconLarge;
+        phiconSmall = iconSmall;
+        
+        CloseHandle(hProcess);
+        return true;
+    }
+
+    DWORD error = GetLastError();
+    std::cout << "No se pudo obtener el icono. Código de error: " << error << std::endl;
+
+    phiconLarge = NULL;
+    phiconSmall = NULL;
+
+    CloseHandle(hProcess);
+    return false;
+}
+
+void App::renderImageWithImGui(const std::vector<unsigned char>& imageData, int width, int height)
+{
+    ImGuiIO& io = ImGui::GetIO();
+
+    ImTextureID my_tex_id = io.Fonts->TexID;
+    //ImTextureID textureId = (ImTextureID)io.Fonts->AddFontTexture();
+
+    float my_tex_w = (float)io.Fonts->TexWidth;
+    float my_tex_h = (float)io.Fonts->TexHeight;
+
+    ImVec2 uv_min = ImVec2(0.0f, 0.0f);                 // Top-left
+    ImVec2 uv_max = ImVec2(1.0f, 1.0f);                 // Lower-right
+
+    ImVec4 tint_col = ImVec4(1.0f, 1.0f, 1.0f, 1.0f);   // No tint
+    ImVec4 border_col = ImVec4(1.0f, 1.0f, 1.0f, 0.5f); // 50% opaque white
+
+    //// Copia los datos de la imagen al búfer de la textura de ImGui
+    std::memcpy(io.Fonts->TexPixelsAlpha8, imageData.data(), imageData.size());
+    
+    ImGui::Image(my_tex_id, ImVec2(width, height), uv_min, uv_max, tint_col, border_col);
+}
+
 void App::loadProcList()
 {
     if (Global::loadList)
@@ -100,9 +216,10 @@ void App::loadProcTable()
     int rows = Global::procList.size() + 1; // Set table rows
 
     // Process table
-    if (ImGui::BeginTable("process_table", 2, flags1))
+    if (ImGui::BeginTable("process_table", 3, flags1))
     {
         // Set column headers
+        ImGui::TableSetupColumn("Icon", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed, 40.0f);
         ImGui::TableSetupColumn("ID", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed, 50.0f);
         ImGui::TableSetupColumn("Process Name", ImGuiTableColumnFlags_DefaultSort | ImGuiTableColumnFlags_WidthFixed, 200.0f);
         ImGui::TableHeadersRow();
@@ -118,6 +235,17 @@ void App::loadProcTable()
 
             // Column 1
             ImGui::TableSetColumnIndex(0);
+            HICON phiconLarge = NULL, phiconSmall = NULL;
+            if (getProcessIcon(Global::procList[row].id, phiconLarge, phiconSmall))
+            {
+                std::cout << "IMAGE-RENDER";
+                GLuint textureID = CreateTextureFromHICON(phiconLarge);
+                ImGui::Image(reinterpret_cast<void*>(static_cast<intptr_t>(textureID)), ImVec2(20, 20)); // Ajusta el tamaño según tus necesidades
+                glDeleteTextures(1, &textureID);
+            }
+
+            // Column 2
+            ImGui::TableSetColumnIndex(1);
             ImGui::Text("%d", Global::procList[row].id);
 
             isHovered = ImGui::IsItemHovered();
@@ -125,8 +253,8 @@ void App::loadProcTable()
             isClicked = ImGui::IsItemClicked(0);
             if (isClicked) { Global::selectedProcess = Global::procList[row]; }
 
-            // Column 2
-            ImGui::TableSetColumnIndex(1);
+            // Column 3
+            ImGui::TableSetColumnIndex(2);
             ImGui::Text("%s", Global::procList[row].name.c_str());
 
             isHovered = ImGui::IsItemHovered();
@@ -146,7 +274,7 @@ std::string App::selectFile()
     ZeroMemory(&ofn, sizeof(OPENFILENAME));
     ofn.lStructSize = sizeof(OPENFILENAME);
     ofn.hwndOwner = NULL; // Ventana principal (o NULL si no es relevante)
-    ofn.lpstrFilter = "All Files (*.*)\0*.*\0"; // Filtros de archivos
+    ofn.lpstrFilter = "Dynamic Link Libraries (*.dll)\0*.dll\0All Files (*.*)\0*.*\0"; // Filtros de archivos
     ofn.lpstrFile = szFileName; // Almacena la ruta del archivo seleccionado
     ofn.nMaxFile = MAX_PATH;
     ofn.Flags = OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST;
@@ -237,7 +365,7 @@ void App::renderInjectionWnd(const OpenGL& window)
         Global::fixedDllPath.assign(Global::dllPath); replace_all(Global::fixedDllPath, "\\", "\\\\"); // DLL path string manipulation
 
         // Injection type
-        const char* items[] = { "Remote Thread Injection (RTI)", "Reflective DLL Injection", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIIIIII", "JJJJ", "KKKKKKK" };
+        const char* items[] = { "Basic Injection", "Reflective DLL Injection", "CCCC", "DDDD", "EEEE", "FFFF", "GGGG", "HHHH", "IIIIIII", "JJJJ", "KKKKKKK" };
         static int item_current = 0;
         ImGui::PushItemWidth(388.0f);
         ImGui::Combo("combo", &item_current, items, IM_ARRAYSIZE(items));
@@ -255,9 +383,11 @@ void App::renderInjectionWnd(const OpenGL& window)
         ImGui::NewLine(); // New
         ImGui::NewLine(); // lines
 
+        //TODO: Inject at XX:XX:XX
+
         // Inject button
         if (ImGui::Button("Inject", { 100, 40 }))
-            if (DLLInjector::Inject(Global::selectedProcess.id, Global::fixedDllPath.c_str()))
+            if (DLLInjector::Inject(Global::selectedProcess.id, Global::fixedDllPath.c_str()) && Global::closeOnInject)
                 exit(1);
             
             
